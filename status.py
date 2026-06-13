@@ -22,8 +22,8 @@ def main():
         "waiting": "waiting",
         "closed_no_reply": "closed (no reply)",
     }
-    print(f"{'NAME':<22}{'COMPANY':<18}{'EMAIL':<30}{'SENT':<12}{'F/U':<5}{'STATUS'}")
-    print("-" * 105)
+    print(f"{'COMPANY':<20}{'EMAIL':<32}{'SENT':<12}{'F/U':<5}{'STATUS'}")
+    print("-" * 95)
     for r in rows:
         try:
             last_sent = datetime.fromisoformat(r["last_sent_date"])
@@ -40,9 +40,8 @@ def main():
         else:  # pre-migration fallback
             status = "replied" if r["replied"] else f"waiting ({days}d)"
         fu = r["followups_sent"] if "followups_sent" in keys and r["followups_sent"] is not None else 0
-        name = (r["recipient_name"] or "")[:20]
-        company = (r["company"] or "")[:16]
-        print(f"{name:<22}{company:<18}{r['recipient_email']:<30}{sent_str:<12}{fu:<5}{status}")
+        company = (r["company"] or "")[:18]
+        print(f"{company:<20}{r['recipient_email']:<32}{sent_str:<12}{fu:<5}{status}")
 
 
 if __name__ == "__main__":

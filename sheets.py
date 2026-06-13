@@ -7,7 +7,7 @@ caller wraps this in try/except so a Sheets problem never fails the whole run.
 from datetime import datetime, timezone
 
 HEADER = [
-    "Name", "Company", "Email", "Subject", "First sent", "Last sent",
+    "Company", "Email", "Subject", "First sent", "Last sent",
     "Follow-ups sent", "Status", "Replied date", "Last updated",
 ]
 
@@ -30,7 +30,6 @@ def build_rows(records):
     rows = []
     for r in records:
         rows.append([
-            r.get("name") or "",
             r.get("company") or "",
             r.get("email") or "",
             (r.get("subject") or "")[:120],
@@ -41,9 +40,9 @@ def build_rows(records):
             (r.get("replied_date") or "")[:10],
             updated,
         ])
-    # Sort: action-needed first, then waiting, replied, closed.
+    # Sort: action-needed first, then waiting, replied, closed (by status col, then company).
     order = {"Follow up now": 0, "Waiting": 1, "Replied": 2, "Closed — no reply": 3}
-    rows.sort(key=lambda x: (order.get(x[7], 9), x[1].lower()))
+    rows.sort(key=lambda x: (order.get(x[6], 9), x[0].lower()))
     return rows
 
 

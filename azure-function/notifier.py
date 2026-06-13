@@ -8,7 +8,6 @@ def _due_table(due_list):
     for d in due_list:
         rows.append(
             "<tr>"
-            f"<td style='padding:6px 10px'>{d['name'] or '-'}</td>"
             f"<td style='padding:6px 10px'>{d['company'] or '-'}</td>"
             f"<td style='padding:6px 10px'><a href='mailto:{d['email']}'>{d['email']}</a></td>"
             f"<td style='padding:6px 10px'>{d['sent']}</td>"
@@ -19,7 +18,7 @@ def _due_table(due_list):
     return (
         "<table style='border-collapse:collapse;border:1px solid #ddd;font-size:14px'>"
         "<thead><tr style='background:#f4f4f4;text-align:left'>"
-        "<th style='padding:6px 10px'>Name</th><th style='padding:6px 10px'>Company</th>"
+        "<th style='padding:6px 10px'>Company</th>"
         "<th style='padding:6px 10px'>Email</th><th style='padding:6px 10px'>Last sent</th>"
         "<th style='padding:6px 10px'>Days ago</th><th style='padding:6px 10px'>Follow-ups sent</th>"
         f"</tr></thead><tbody>{''.join(rows)}</tbody></table>"
@@ -31,7 +30,6 @@ def _closed_table(closed_list):
     for d in closed_list:
         rows.append(
             "<tr>"
-            f"<td style='padding:6px 10px'>{d['name'] or '-'}</td>"
             f"<td style='padding:6px 10px'>{d['company'] or '-'}</td>"
             f"<td style='padding:6px 10px'><a href='mailto:{d['email']}'>{d['email']}</a></td>"
             f"<td style='padding:6px 10px'>{d['sent']}</td>"
@@ -40,7 +38,7 @@ def _closed_table(closed_list):
     return (
         "<table style='border-collapse:collapse;border:1px solid #ddd;font-size:14px'>"
         "<thead><tr style='background:#f4f4f4;text-align:left'>"
-        "<th style='padding:6px 10px'>Name</th><th style='padding:6px 10px'>Company</th>"
+        "<th style='padding:6px 10px'>Company</th>"
         "<th style='padding:6px 10px'>Email</th><th style='padding:6px 10px'>Last sent</th>"
         f"</tr></thead><tbody>{''.join(rows)}</tbody></table>"
     )
