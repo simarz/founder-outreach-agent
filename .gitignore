@@ -1,0 +1,25 @@
+# ---- Editor / tooling ----
+.claude/
+
+# ---- Secrets — never commit these ----
+credentials.json
+token.json
+local.settings.json
+# config.json holds your real email; commit config.example.json instead
+config.json
+
+# ---- Local data / personal ----
+tracking.db
+contacts.csv
+
+# ---- Logs / build artifacts ----
+*.log
+deploy_log.txt
+.python_packages/
+bin/
+obj/
+
+# ---- Python ----
+.venv/
+__pycache__/
+*.pyc

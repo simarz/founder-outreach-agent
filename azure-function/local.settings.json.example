@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "GMAIL_TOKEN_JSON": "<<paste the full contents of your local token.json here, on one line>>",
+    "NOTIFY_EMAIL": "your-email@example.com",
+    "LABEL_NAME": "founders",
+    "FOLLOWUP_DAYS": "7",
+    "MAX_FOLLOWUPS": "2",
+    "SHEET_ID": "",
+    "STATE_CONTAINER": "followup-state"
+  }
+}
