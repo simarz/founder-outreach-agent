@@ -5,11 +5,33 @@ token is cached in token.json so later runs are non-interactive (important for
 the daily scheduled task).
 """
 import os
+import time
 
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+
+
+def _refresh_with_retries(creds, attempts=3, delay=5):
+    """Refresh the access token, retrying transient (non-auth) failures."""
+    last_error = None
+    for attempt in range(attempts):
+        try:
+            creds.refresh(Request())
+            return
+        except RefreshError as exc:
+            if "invalid_grant" in str(exc).lower():
+                raise  # token actually revoked/expired — retrying won't help
+            last_error = exc
+        except Exception as exc:  # transport/timeout/DNS blip
+            last_error = exc
+        if attempt < attempts - 1:
+            print(f"[!] Token refresh attempt {attempt + 1} failed "
+                  f"({type(last_error).__name__}); retrying in {delay}s...")
+            time.sleep(delay)
+    raise last_error
 
 # readonly = scan sent mail + threads + labels; send = deliver the digest email;
 # spreadsheets = write the tracking table to your Google Sheet.
@@ -32,7 +54,7 @@ def get_credentials():
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            _refresh_with_retries(creds)
         else:
             if not os.path.exists(CREDENTIALS_FILE):
                 raise FileNotFoundError(
