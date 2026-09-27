@@ -6,8 +6,16 @@ from email.mime.text import MIMEText
 def _due_table(due_list):
     rows = []
     for d in due_list:
+        replied = d.get("stage") == "Replied"
+        stage_style = (
+            "background:#e6f4ea;color:#137333" if replied
+            else "background:#fce8e6;color:#c5221f"
+        )
         rows.append(
             "<tr>"
+            f"<td style='padding:6px 10px'><span style='{stage_style};"
+            f"padding:2px 8px;border-radius:10px;font-size:12px'>"
+            f"{d.get('stage', 'New outreach')}</span></td>"
             f"<td style='padding:6px 10px'>{d['company'] or '-'}</td>"
             f"<td style='padding:6px 10px'><a href='mailto:{d['email']}'>{d['email']}</a></td>"
             f"<td style='padding:6px 10px'>{d['sent']}</td>"
@@ -18,9 +26,10 @@ def _due_table(due_list):
     return (
         "<table style='border-collapse:collapse;border:1px solid #ddd;font-size:14px'>"
         "<thead><tr style='background:#f4f4f4;text-align:left'>"
+        "<th style='padding:6px 10px'>Stage</th>"
         "<th style='padding:6px 10px'>Company</th>"
         "<th style='padding:6px 10px'>Email</th><th style='padding:6px 10px'>Last sent</th>"
-        "<th style='padding:6px 10px'>Days ago</th><th style='padding:6px 10px'>Follow-ups sent</th>"
+        "<th style='padding:6px 10px'>Days quiet</th><th style='padding:6px 10px'>Follow-ups sent</th>"
         f"</tr></thead><tbody>{''.join(rows)}</tbody></table>"
     )
 
@@ -58,8 +67,9 @@ def send_digest(service, to_email, due_list, closed_list, followup_days, max_fol
     if due_list:
         sections.append(
             "<h2 style='margin-bottom:4px'>Follow-up reminders</h2>"
-            f"<p style='margin-top:0;color:#555'>{len(due_list)} founder(s) "
-            f"haven't replied in {followup_days}+ days.</p>" + _due_table(due_list)
+            f"<p style='margin-top:0;color:#555'>{len(due_list)} conversation(s) "
+            f"quiet for {followup_days}+ days — including founders who replied "
+            "(Stage: Replied).</p>" + _due_table(due_list)
         )
     if closed_list:
         sections.append(

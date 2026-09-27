@@ -15,6 +15,17 @@ from zoneinfo import ZoneInfo
 # Calendar days are counted in this timezone, ignoring time of day.
 LOCAL_TZ = ZoneInfo("America/New_York")
 
+
+def local_date(dt):
+    """The Eastern-time calendar date of a timezone-aware datetime."""
+    return dt.astimezone(LOCAL_TZ).date()
+
+
+def calendar_days_since(now, then):
+    """Count calendar days, not 24-hour periods: a message sent Monday at 5pm
+    is 7 days old the following Monday, whatever time the check runs."""
+    return (local_date(now) - local_date(then)).days
+
 # Personal-email providers we never treat as a "company".
 GENERIC_DOMAINS = {
     "gmail.com", "googlemail.com", "outlook.com", "hotmail.com", "yahoo.com",
@@ -40,10 +51,18 @@ def guess_company(email):
     return root.capitalize()
 
 
-def find_label_id(service, label_name):
+def find_label_id(service, label_name, match_nested=False):
+    """Find a label ID by name.
+
+    With match_nested=True a nested label also matches by its leaf name —
+    e.g. 'responded' matches 'founders/responded' (Gmail names nested labels
+    parent/child).
+    """
+    target = label_name.lower()
     labels = service.users().labels().list(userId="me").execute().get("labels", [])
     for l in labels:
-        if l.get("name", "").lower() == label_name.lower():
+        name = l.get("name", "").lower()
+        if name == target or (match_nested and name.endswith("/" + target)):
             return l["id"]
     return None
 
@@ -80,8 +99,13 @@ def _message_datetime(message, headers):
         )
 
 
-def analyze_thread(service, thread_id, my_email):
-    """Return tracking info for a single thread."""
+def analyze_thread(service, thread_id, my_email, responded_label_id=None):
+    """Return tracking info for a single thread.
+
+    If responded_label_id is given, also reports whether any message in the
+    thread carries that label — the manual "this founder responded" marker for
+    replies that happen outside the thread (new email, LinkedIn, a call).
+    """
     thread = service.users().threads().get(
         userId="me", id=thread_id, format="metadata",
         metadataHeaders=["From", "To", "Date", "Subject"],
@@ -89,7 +113,9 @@ def analyze_thread(service, thread_id, my_email):
 
     my_email = my_email.lower()
     parsed = []
+    label_ids = set()
     for m in thread.get("messages", []):
+        label_ids.update(m.get("labelIds", []))
         # Unsent drafts are part of the thread but must not reset the clock.
         if "DRAFT" in m.get("labelIds", []):
             continue
@@ -115,7 +141,12 @@ def analyze_thread(service, thread_id, my_email):
     first = my_messages[0]
     last_sent = max(p["date"] for p in my_messages)
     replies_after = [d for d in other_dates if d > last_sent]
-    replied = bool(replies_after)
+    their_last = max(other_dates) if other_dates else None
+    # Messages you sent AFTER their most recent reply = nudges in the current
+    # round of the conversation. 0 when they've never written in-thread.
+    my_after_their_last = (
+        len([p for p in my_messages if p["date"] > their_last]) if their_last else 0
+    )
 
     return {
         "thread_id": thread_id,
@@ -124,31 +155,48 @@ def analyze_thread(service, thread_id, my_email):
         "subject": first["subject"],
         "first_sent": my_messages[0]["date"],
         "last_sent": last_sent,
-        "replied": replied,
+        "replied": bool(replies_after),
         "replied_date": min(replies_after) if replies_after else None,
+        # Founder has EVER written in this thread (survives you replying back).
+        "ever_replied": bool(other_dates),
+        "their_last_date": their_last,
+        "last_message_date": parsed[-1]["date"],
+        "my_msgs_after_their_last": my_after_their_last,
         # How many emails YOU sent in this thread. 1 = initial outreach only,
         # 2 = one follow-up sent, 3 = two follow-ups sent, etc.
         "my_message_count": len(my_messages),
+        # True if you manually tagged this thread with the responded label.
+        "manually_responded": bool(responded_label_id) and responded_label_id in label_ids,
     }
 
 
 def classify_thread(info, now, followup_days, max_followups):
     """Decide a thread's follow-up status.
 
-    Returns (status, days_since_last_sent, followups_sent) where status is one of:
-      - "replied"          : the founder responded; nothing to do
-      - "due"              : no reply, 7+ days, and we can still follow up
-      - "closed_no_reply"  : no reply after the allowed number of follow-ups; stop
-      - "waiting"          : no reply yet, but the follow-up window hasn't elapsed
+    Returns (status, days, followups_sent).
+
+    Replied category — the founder has engaged (an in-thread reply was seen, or
+    you tagged the thread with the responded label). These stay on the same
+    7-day cadence but are never closed out by the follow-up cap:
+      - "replied_due"     : conversation quiet for followup_days+; follow up
+      - "replied_waiting" : conversation active within the window
+      (days = staleness of the LAST message in the thread, either party;
+       followups_sent = your messages since their most recent reply)
+
+    Outreach category — no engagement yet:
+      - "due"             : no reply, followup_days+ since your last email
+      - "waiting"         : no reply yet, window hasn't elapsed
+      - "closed_no_reply" : no reply after max_followups follow-ups; stop
     """
-    # Count calendar days, not 24-hour periods: a message sent Monday at 5pm
-    # is 7 days old the following Monday, whatever time the check runs.
-    days = (now.astimezone(LOCAL_TZ).date()
-            - info["last_sent"].astimezone(LOCAL_TZ).date()).days
+    if info.get("manually_responded") or info.get("ever_replied"):
+        days = calendar_days_since(now, info["last_message_date"])
+        followups_sent = info.get("my_msgs_after_their_last", 0)
+        status = "replied_due" if days >= followup_days else "replied_waiting"
+        return status, days, followups_sent
+
+    days = calendar_days_since(now, info["last_sent"])
     followups_sent = max(info.get("my_message_count", 1) - 1, 0)
-    if info["replied"]:
-        status = "replied"
-    elif followups_sent >= max_followups:
+    if followups_sent >= max_followups:
         status = "closed_no_reply"
     elif days >= followup_days:
         status = "due"

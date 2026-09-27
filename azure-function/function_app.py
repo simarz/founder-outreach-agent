@@ -26,6 +26,7 @@ def run_agent():
     label_name = os.environ.get("LABEL_NAME", "founders")
     followup_days = int(os.environ.get("FOLLOWUP_DAYS", "7"))
     max_followups = int(os.environ.get("MAX_FOLLOWUPS", "2"))
+    responded_label = os.environ.get("RESPONDED_LABEL", "responded")
     notify_email = os.environ["NOTIFY_EMAIL"]
     sheet_id = (os.environ.get("SHEET_ID") or "").strip()
 
@@ -40,6 +41,11 @@ def run_agent():
         logging.warning(msg)
         return msg
 
+    # Optional manual "this founder responded" marker; None if label not created.
+    # match_nested lets 'responded' find a label nested under founders
+    # (Gmail names it 'founders/responded').
+    responded_label_id = tracker.find_label_id(service, responded_label, match_nested=True)
+
     now = datetime.now(timezone.utc)
     due_list = []
     closed_list = []
@@ -47,7 +53,7 @@ def run_agent():
     tracked = 0
 
     for tid in thread_ids:
-        info = tracker.analyze_thread(service, tid, my_email)
+        info = tracker.analyze_thread(service, tid, my_email, responded_label_id)
         if not info.get("last_sent") or not info.get("recipient_email"):
             continue
         tracked += 1
@@ -65,6 +71,8 @@ def run_agent():
         status, days, followups_sent = tracker.classify_thread(
             info, now, followup_days, max_followups
         )
+        engaged = bool(info.get("ever_replied") or info.get("manually_responded"))
+        their_last = info.get("their_last_date")
 
         # Preserve whether we've already sent the one-time 'closed' notice.
         prev_closed_notified = history.get(info["thread_id"], {}).get("closed_notified", False)
@@ -75,8 +83,8 @@ def run_agent():
             "subject": info["subject"],
             "first_sent_date": info["first_sent"].isoformat(),
             "last_sent_date": info["last_sent"].isoformat(),
-            "replied": bool(info["replied"]),
-            "replied_date": info["replied_date"].isoformat() if info["replied_date"] else None,
+            "replied": engaged,
+            "replied_date": their_last.isoformat() if their_last else None,
             "status": status,
             "followups_sent": followups_sent,
             "closed_notified": prev_closed_notified,
@@ -84,10 +92,11 @@ def run_agent():
 
         entry = {
             "name": name, "company": company, "email": email,
-            "sent": info["last_sent"].strftime("%Y-%m-%d"),
+            "sent": tracker.local_date(info["last_sent"]).isoformat(),
             "days": days, "followups_sent": followups_sent, "thread_id": tid,
+            "stage": "Replied" if status.startswith("replied_") else "New outreach",
         }
-        if status == "due":
+        if status in ("due", "replied_due"):
             due_list.append(entry)
         elif status == "closed_no_reply" and not prev_closed_notified:
             closed_list.append(entry)
@@ -95,10 +104,10 @@ def run_agent():
         sheet_records.append({
             "name": name, "company": company, "email": email,
             "subject": info["subject"],
-            "first_sent": info["first_sent"].isoformat(),
-            "last_sent": info["last_sent"].isoformat(),
+            "first_sent": tracker.local_date(info["first_sent"]).isoformat(),
+            "last_sent": tracker.local_date(info["last_sent"]).isoformat(),
             "followups_sent": followups_sent, "status": status,
-            "replied_date": info["replied_date"].isoformat() if info["replied_date"] else "",
+            "replied_date": tracker.local_date(their_last).isoformat() if their_last else "",
         })
 
     due_list.sort(key=lambda d: d["days"], reverse=True)
@@ -116,10 +125,10 @@ def run_agent():
     storage.save_tracking(history)
 
     # Mirror the full tracking table to Google Sheets (optional, best-effort).
-    sheet_rows = 0
+    sheet_outreach, sheet_replied = 0, 0
     if sheet_id:
         try:
-            sheet_rows = sheets.update_sheet(
+            sheet_outreach, sheet_replied = sheets.update_sheet(
                 gmail_auth_cloud.get_sheets_service(), sheet_id, sheet_records
             )
         except Exception as exc:  # never let a Sheets error fail the run
@@ -128,7 +137,8 @@ def run_agent():
     summary = (
         f"Scanned {len(thread_ids)} thread(s), tracked {tracked}. "
         f"{len(due_list)} follow-up(s) due, {len(closed_list)} newly closed. "
-        f"Digest emailed: {sent}. Sheet rows: {sheet_rows}."
+        f"Digest emailed: {sent}. "
+        f"Sheet: {sheet_outreach} outreach, {sheet_replied} replied."
     )
     logging.info(summary)
     return summary

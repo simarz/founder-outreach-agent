@@ -112,6 +112,12 @@ was emailed) and, if anyone is overdue, you'll receive the digest email.
   reminders. The agent counts the emails you sent in each thread to detect this
   automatically — no manual labeling needed. A newly-closed thread is listed once
   in the digest under "Closed — no reply", then dropped.
+- **Responded label / Replied category:** founders who engaged — an in-thread
+  reply was detected, or you applied the label named in `RESPONDED_LABEL`
+  (default `responded`; may be nested under founders as `founders/responded`) —
+  move to the **Replied** category. They keep the same 7-day follow-up cadence
+  (reminded whenever the conversation is quiet for `FOLLOWUP_DAYS`), are exempt
+  from the `MAX_FOLLOWUPS` closure, and live on the sheet's **Replied** tab.
 - **Google Sheets export:** set the `SHEET_ID` app setting to a Google Sheet ID
   (the long string in its URL between `/d/` and `/edit`) and the agent mirrors the
   full tracking table there on every run. Leave it blank to disable. This needs

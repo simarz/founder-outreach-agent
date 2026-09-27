@@ -5,6 +5,7 @@
 from datetime import datetime, timezone
 
 import database
+import tracker
 
 
 def main():
@@ -17,25 +18,29 @@ def main():
     now = datetime.now(timezone.utc)
     # Friendly labels for the stored status (falls back gracefully on old rows).
     labels = {
-        "replied": "replied",
-        "due": "FOLLOW UP",
+        "due": "FOLLOW UP (new outreach)",
         "waiting": "waiting",
         "closed_no_reply": "closed (no reply)",
+        "replied_due": "FOLLOW UP (replied)",
+        "replied_waiting": "in conversation",
+        # legacy rows from earlier versions
+        "replied": "replied",
+        "responded": "responded",
     }
     print(f"{'COMPANY':<20}{'EMAIL':<32}{'SENT':<12}{'F/U':<5}{'STATUS'}")
     print("-" * 95)
     for r in rows:
         try:
             last_sent = datetime.fromisoformat(r["last_sent_date"])
-            days = (now - last_sent).days
-            sent_str = last_sent.strftime("%Y-%m-%d")
+            days = tracker.calendar_days_since(now, last_sent)
+            sent_str = tracker.local_date(last_sent).isoformat()
         except Exception:
             days, sent_str = "?", "?"
         keys = r.keys()
         stored = r["status"] if "status" in keys else None
         if stored:
             status = labels.get(stored, stored)
-            if stored in ("due", "waiting"):
+            if stored in ("due", "waiting", "replied_due", "replied_waiting"):
                 status = f"{status} ({days}d)"
         else:  # pre-migration fallback
             status = "replied" if r["replied"] else f"waiting ({days}d)"

@@ -125,14 +125,27 @@ copy config.example.json config.json
   initial email + 2 follow-ups, then the thread is closed out).
 - `notify_email` — where the daily digest is sent.
 
-### When does tracking stop?
+### Two categories: New outreach vs Replied
 
-A thread drops off your reminders automatically once **any** of these is true:
+Every tracked thread is in one of two categories:
 
-- the founder **replies** (the agent sees their message), **or**
-- you've sent `max_followups` follow-ups with no reply — the agent counts the
-  emails *you* sent in the thread, so it knows when you've hit the limit, **or**
-- you remove the `founders` label (manual early stop).
+- **New outreach** — the founder hasn't engaged yet. Reminded after
+  `followup_days` of silence; closed out ("Closed — no reply") after
+  `max_followups` unanswered follow-ups.
+- **Replied** — the founder has engaged: they replied in the thread, **or** you
+  tagged the thread with the **`responded` label** (for replies that arrive
+  outside the thread — a new email, LinkedIn, a call). Replied threads stay on
+  the **same 7-day cadence**: whenever the conversation goes quiet for
+  `followup_days` (whoever spoke last), you're reminded to follow up. They are
+  **never** closed out by the follow-up cap — that's for ghosts, not live
+  conversations.
+
+The `responded` label can be nested under `founders` (Gmail shows it as
+`founders/responded`) — the agent matches it either way. The digest marks each
+reminder with its stage (Replied vs New outreach), and the Google Sheet keeps
+the categories on separate tabs: the main tab for outreach, a **Replied** tab
+for engaged founders. Tracking stops entirely only when a thread is closed as
+no-reply or you remove the `founders` label.
 
 When a thread hits the follow-up limit, it appears **once** in the digest under
 "Closed — no reply" so you know it stopped, then never again.

@@ -26,6 +26,7 @@ $NotifyEmail    = "your-email@example.com"
 $LabelName      = "founders"
 $FollowupDays   = "7"
 $MaxFollowups   = "2"   # stop reminding after this many unanswered follow-ups
+$RespondedLabel = "responded"  # Gmail label that manually marks a founder as responded
 $SheetId        = ""    # Google Sheet ID to mirror the tracking table into (blank = off)
 $TokenFile      = Join-Path (Split-Path $PSScriptRoot -Parent) "token.json"
 
@@ -52,6 +53,7 @@ az functionapp config appsettings set --name $FunctionApp --resource-group $Reso
     "LABEL_NAME=$LabelName" `
     "FOLLOWUP_DAYS=$FollowupDays" `
     "MAX_FOLLOWUPS=$MaxFollowups" `
+    "RESPONDED_LABEL=$RespondedLabel" `
     "SHEET_ID=$SheetId" `
     "STATE_CONTAINER=followup-state" `
     "WEBSITE_TIME_ZONE=Eastern Standard Time" `

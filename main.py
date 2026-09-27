@@ -32,6 +32,7 @@ def main():
     label_name = cfg["label_name"]
     followup_days = int(cfg["followup_days"])
     max_followups = int(cfg.get("max_followups", 2))
+    responded_label = cfg.get("responded_label", "responded")
     notify_email = cfg["notify_email"]
     sheet_id = (cfg.get("sheet_id") or "").strip()
 
@@ -49,6 +50,11 @@ def main():
         )
         return
 
+    # Optional manual "this founder responded" marker; None if label not created.
+    # match_nested lets 'responded' find a label nested under founders
+    # (Gmail names it 'founders/responded').
+    responded_label_id = tracker.find_label_id(service, responded_label, match_nested=True)
+
     print(f"Scanning {len(thread_ids)} labeled thread(s) as {my_email} ...")
     now = datetime.now(timezone.utc)
     due_list = []
@@ -57,7 +63,7 @@ def main():
     tracked_count = 0
 
     for tid in thread_ids:
-        info = tracker.analyze_thread(service, tid, my_email)
+        info = tracker.analyze_thread(service, tid, my_email, responded_label_id)
         if not info.get("last_sent") or not info.get("recipient_email"):
             continue
         tracked_count += 1
@@ -76,6 +82,8 @@ def main():
         status, days, followups_sent = tracker.classify_thread(
             info, now, followup_days, max_followups
         )
+        engaged = bool(info.get("ever_replied") or info.get("manually_responded"))
+        their_last = info.get("their_last_date")
 
         database.upsert_thread({
             "thread_id": info["thread_id"],
@@ -85,18 +93,19 @@ def main():
             "subject": info["subject"],
             "first_sent_date": info["first_sent"].isoformat(),
             "last_sent_date": info["last_sent"].isoformat(),
-            "replied": 1 if info["replied"] else 0,
-            "replied_date": info["replied_date"].isoformat() if info["replied_date"] else None,
+            "replied": 1 if engaged else 0,
+            "replied_date": their_last.isoformat() if their_last else None,
             "status": status,
             "followups_sent": followups_sent,
         })
 
         entry = {
             "name": name, "company": company, "email": email,
-            "sent": info["last_sent"].strftime("%Y-%m-%d"),
+            "sent": tracker.local_date(info["last_sent"]).isoformat(),
             "days": days, "followups_sent": followups_sent, "thread_id": tid,
+            "stage": "Replied" if status.startswith("replied_") else "New outreach",
         }
-        if status == "due":
+        if status in ("due", "replied_due"):
             due_list.append(entry)
         elif status == "closed_no_reply" and not database.get_closed_notified(tid):
             # Only surface a newly-closed thread once.
@@ -105,10 +114,10 @@ def main():
         sheet_records.append({
             "name": name, "company": company, "email": email,
             "subject": info["subject"],
-            "first_sent": info["first_sent"].isoformat(),
-            "last_sent": info["last_sent"].isoformat(),
+            "first_sent": tracker.local_date(info["first_sent"]).isoformat(),
+            "last_sent": tracker.local_date(info["last_sent"]).isoformat(),
             "followups_sent": followups_sent, "status": status,
-            "replied_date": info["replied_date"].isoformat() if info["replied_date"] else "",
+            "replied_date": tracker.local_date(their_last).isoformat() if their_last else "",
         })
 
     contacts_mod.save_contacts(overrides)
@@ -128,7 +137,7 @@ def main():
     if due_list or closed_list:
         if notifier.send_digest(service, notify_email, due_list, closed_list,
                                 followup_days, max_followups):
-            today = now.strftime("%Y-%m-%d")
+            today = tracker.local_date(now).isoformat()
             for d in due_list:
                 database.mark_notified(d["thread_id"], today)
             for d in closed_list:
@@ -140,10 +149,10 @@ def main():
     # Mirror the full tracking table to Google Sheets (optional, best-effort).
     if sheet_id:
         try:
-            n = sheets.update_sheet(
+            n_outreach, n_replied = sheets.update_sheet(
                 gmail_auth.get_sheets_service(), sheet_id, sheet_records
             )
-            print(f"Google Sheet updated ({n} row(s)).")
+            print(f"Google Sheet updated ({n_outreach} outreach, {n_replied} replied).")
         except Exception as exc:  # never let a Sheets error fail the run
             print(f"[!] Google Sheet update skipped: {exc}")
 

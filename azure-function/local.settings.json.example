@@ -8,6 +8,7 @@
     "LABEL_NAME": "founders",
     "FOLLOWUP_DAYS": "7",
     "MAX_FOLLOWUPS": "2",
+    "RESPONDED_LABEL": "responded",
     "SHEET_ID": "",
     "STATE_CONTAINER": "followup-state"
   }
