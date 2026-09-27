@@ -5,6 +5,10 @@
 credentials.json
 token.json
 local.settings.json
+# Google's OAuth download is named client_secret_<id>.json before you rename it
+client_secret*.json
+.env
+.env.*
 # config.json holds your real email; commit config.example.json instead
 config.json
 
@@ -18,6 +22,9 @@ deploy_log.txt
 .python_packages/
 bin/
 obj/
+
+# ---- OS ----
+.DS_Store
 
 # ---- Python ----
 .venv/

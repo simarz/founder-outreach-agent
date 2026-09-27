@@ -10,6 +10,10 @@ you DO follow up, the 7-day clock resets automatically.
 """
 from datetime import datetime, timezone
 from email.utils import parseaddr, parsedate_to_datetime
+from zoneinfo import ZoneInfo
+
+# Calendar days are counted in this timezone, ignoring time of day.
+LOCAL_TZ = ZoneInfo("America/New_York")
 
 # Personal-email providers we never treat as a "company".
 GENERIC_DOMAINS = {
@@ -86,6 +90,9 @@ def analyze_thread(service, thread_id, my_email):
     my_email = my_email.lower()
     parsed = []
     for m in thread.get("messages", []):
+        # Unsent drafts are part of the thread but must not reset the clock.
+        if "DRAFT" in m.get("labelIds", []):
+            continue
         headers = m.get("payload", {}).get("headers", [])
         from_name, from_addr = parseaddr(_header(headers, "From"))
         to_name, to_addr = parseaddr(_header(headers, "To"))
@@ -134,7 +141,10 @@ def classify_thread(info, now, followup_days, max_followups):
       - "closed_no_reply"  : no reply after the allowed number of follow-ups; stop
       - "waiting"          : no reply yet, but the follow-up window hasn't elapsed
     """
-    days = (now - info["last_sent"]).days
+    # Count calendar days, not 24-hour periods: a message sent Monday at 5pm
+    # is 7 days old the following Monday, whatever time the check runs.
+    days = (now.astimezone(LOCAL_TZ).date()
+            - info["last_sent"].astimezone(LOCAL_TZ).date()).days
     followups_sent = max(info.get("my_message_count", 1) - 1, 0)
     if info["replied"]:
         status = "replied"
