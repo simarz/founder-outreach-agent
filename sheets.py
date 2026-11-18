@@ -20,6 +20,8 @@ STATUS_LABELS = {
     "closed_no_reply": "Closed — no reply",
     "replied_due": "Follow up now",
     "replied_waiting": "In conversation",
+    "dismissed": "Dismissed",
+    "replied_dismissed": "Dismissed",
     # Legacy values from earlier versions, kept so old rows still render.
     "replied": "Replied",
     "responded": "Responded",

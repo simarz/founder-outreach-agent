@@ -27,6 +27,7 @@ def run_agent():
     followup_days = int(os.environ.get("FOLLOWUP_DAYS", "7"))
     max_followups = int(os.environ.get("MAX_FOLLOWUPS", "2"))
     responded_label = os.environ.get("RESPONDED_LABEL", "responded")
+    dismissed_label = os.environ.get("DISMISSED_LABEL", "dismissed")
     notify_email = os.environ["NOTIFY_EMAIL"]
     sheet_id = (os.environ.get("SHEET_ID") or "").strip()
 
@@ -45,6 +46,8 @@ def run_agent():
     # match_nested lets 'responded' find a label nested under founders
     # (Gmail names it 'founders/responded').
     responded_label_id = tracker.find_label_id(service, responded_label, match_nested=True)
+    # Manual "stop reminding me" marker, e.g. 'founders/dismissed'.
+    dismissed_label_id = tracker.find_label_id(service, dismissed_label, match_nested=True)
 
     now = datetime.now(timezone.utc)
     due_list = []
@@ -53,7 +56,9 @@ def run_agent():
     tracked = 0
 
     for tid in thread_ids:
-        info = tracker.analyze_thread(service, tid, my_email, responded_label_id)
+        info = tracker.analyze_thread(
+            service, tid, my_email, responded_label_id, dismissed_label_id
+        )
         if not info.get("last_sent") or not info.get("recipient_email"):
             continue
         tracked += 1

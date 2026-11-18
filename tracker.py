@@ -99,12 +99,15 @@ def _message_datetime(message, headers):
         )
 
 
-def analyze_thread(service, thread_id, my_email, responded_label_id=None):
+def analyze_thread(service, thread_id, my_email, responded_label_id=None,
+                   dismissed_label_id=None):
     """Return tracking info for a single thread.
 
     If responded_label_id is given, also reports whether any message in the
     thread carries that label — the manual "this founder responded" marker for
     replies that happen outside the thread (new email, LinkedIn, a call).
+    If dismissed_label_id is given, also reports whether the thread carries
+    that label — the manual "stop reminding me about this one" marker.
     """
     thread = service.users().threads().get(
         userId="me", id=thread_id, format="metadata",
@@ -167,6 +170,8 @@ def analyze_thread(service, thread_id, my_email, responded_label_id=None):
         "my_message_count": len(my_messages),
         # True if you manually tagged this thread with the responded label.
         "manually_responded": bool(responded_label_id) and responded_label_id in label_ids,
+        # True if you tagged this thread with the dismissed label.
+        "dismissed": bool(dismissed_label_id) and dismissed_label_id in label_ids,
     }
 
 
@@ -180,6 +185,7 @@ def classify_thread(info, now, followup_days, max_followups):
     7-day cadence but are never closed out by the follow-up cap:
       - "replied_due"     : conversation quiet for followup_days+; follow up
       - "replied_waiting" : conversation active within the window
+      - "replied_dismissed": you tagged it dismissed; never reminded
       (days = staleness of the LAST message in the thread, either party;
        followups_sent = your messages since their most recent reply)
 
@@ -187,16 +193,24 @@ def classify_thread(info, now, followup_days, max_followups):
       - "due"             : no reply, followup_days+ since your last email
       - "waiting"         : no reply yet, window hasn't elapsed
       - "closed_no_reply" : no reply after max_followups follow-ups; stop
+      - "dismissed"       : you tagged it dismissed; never reminded
     """
     if info.get("manually_responded") or info.get("ever_replied"):
         days = calendar_days_since(now, info["last_message_date"])
         followups_sent = info.get("my_msgs_after_their_last", 0)
-        status = "replied_due" if days >= followup_days else "replied_waiting"
+        if info.get("dismissed"):
+            status = "replied_dismissed"
+        elif days >= followup_days:
+            status = "replied_due"
+        else:
+            status = "replied_waiting"
         return status, days, followups_sent
 
     days = calendar_days_since(now, info["last_sent"])
     followups_sent = max(info.get("my_message_count", 1) - 1, 0)
-    if followups_sent >= max_followups:
+    if info.get("dismissed"):
+        status = "dismissed"
+    elif followups_sent >= max_followups:
         status = "closed_no_reply"
     elif days >= followup_days:
         status = "due"

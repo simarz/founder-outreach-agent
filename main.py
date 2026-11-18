@@ -33,6 +33,7 @@ def main():
     followup_days = int(cfg["followup_days"])
     max_followups = int(cfg.get("max_followups", 2))
     responded_label = cfg.get("responded_label", "responded")
+    dismissed_label = cfg.get("dismissed_label", "dismissed")
     notify_email = cfg["notify_email"]
     sheet_id = (cfg.get("sheet_id") or "").strip()
 
@@ -54,6 +55,8 @@ def main():
     # match_nested lets 'responded' find a label nested under founders
     # (Gmail names it 'founders/responded').
     responded_label_id = tracker.find_label_id(service, responded_label, match_nested=True)
+    # Manual "stop reminding me" marker, e.g. 'founders/dismissed'.
+    dismissed_label_id = tracker.find_label_id(service, dismissed_label, match_nested=True)
 
     print(f"Scanning {len(thread_ids)} labeled thread(s) as {my_email} ...")
     now = datetime.now(timezone.utc)
@@ -63,7 +66,9 @@ def main():
     tracked_count = 0
 
     for tid in thread_ids:
-        info = tracker.analyze_thread(service, tid, my_email, responded_label_id)
+        info = tracker.analyze_thread(
+            service, tid, my_email, responded_label_id, dismissed_label_id
+        )
         if not info.get("last_sent") or not info.get("recipient_email"):
             continue
         tracked_count += 1

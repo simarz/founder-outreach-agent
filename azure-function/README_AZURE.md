@@ -118,6 +118,10 @@ was emailed) and, if anyone is overdue, you'll receive the digest email.
   move to the **Replied** category. They keep the same 7-day follow-up cadence
   (reminded whenever the conversation is quiet for `FOLLOWUP_DAYS`), are exempt
   from the `MAX_FOLLOWUPS` closure, and live on the sheet's **Replied** tab.
+- **Dismissed label:** to stop reminders for a thread you've given up on, apply a
+  Gmail label named `dismissed` (or `founders/dismissed`; override with
+  `DISMISSED_LABEL`). The thread stays on the sheet as "Dismissed" but never
+  appears in the digest. Remove the label to start tracking it again.
 - **Google Sheets export:** set the `SHEET_ID` app setting to a Google Sheet ID
   (the long string in its URL between `/d/` and `/edit`) and the agent mirrors the
   full tracking table there on every run. Leave it blank to disable. This needs
